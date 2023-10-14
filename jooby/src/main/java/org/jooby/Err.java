@@ -203,10 +203,9 @@
  */
 package org.jooby;
 
-import java.util.*;
-import java.util.function.BiFunction;
-import java.util.function.Function;
-import java.util.function.Supplier;
+import java.util.LinkedHashMap;
+import java.util.Map;
+import java.util.Optional;
 
 import com.typesafe.config.Config;
 import org.jooby.funzy.Try;
@@ -288,21 +287,12 @@ public class Err extends RuntimeException {
       log.error("execution of: {}{} resulted in exception\nRoute:\n{}\n\nStacktrace:",
           req.method(), req.path(), req.route().print(6), ex);
       Config conf = req.require(Config.class);
-      Env env = req.require(Env.class);
       boolean stackstrace = Try.apply(() -> conf.getBoolean("err.stacktrace"))
-          .orElse(env.name().equals("dev"));
-
-      Function<Object, String> xssFilter = env.xss("html").compose(Objects::toString);
-      BiFunction<String, Object, String> escaper = (k, v) -> xssFilter.apply(v);
-
-      Map<String, Object> details = ex.toMap(stackstrace);
-      details.compute("message", escaper);
-      details.compute("reason", escaper);
-
+          .orElse(req.require(Env.class).name().equals("dev"));
       rsp.send(
           Results
-              .when(MediaType.html, () -> Results.html(VIEW).put("err", details))
-              .when(MediaType.all, () -> details));
+              .when(MediaType.html, () -> Results.html(VIEW).put("err", ex.toMap(stackstrace)))
+              .when(MediaType.all, () -> ex.toMap(stackstrace)));
     }
 
   }
